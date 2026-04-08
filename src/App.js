@@ -915,14 +915,267 @@ function PageSettings({addToast}){
   );
 }
 
+// ─── Patient Onboarding ───────────────────────────────────────────────────────
+const CONDITION_OPTIONS=[
+  "Type 2 Diabetes","Heart Failure","COPD","Chronic Kidney Disease (CKD)",
+  "Hypertension","Depression","Asthma","Atrial Fibrillation","Arthritis","Osteoporosis",
+];
+
+function PatientOnboarding({currentUser,onComplete}){
+  const [step,setStep]=useState(1);
+  const TOTAL=4;
+  const [form,setForm]=useState({
+    age:"",conditions:[],conditions_other:"",smoking_status:"",
+    num_meds:"",telehealth_6m:"",lives_alone:"",
+    ed_visits:"",missed_appts:"",days_since_gp:"",
+    records:[],
+  });
+  const [dragging,setDragging]=useState(false);
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+
+  function toggleCondition(c){
+    setForm(f=>({...f,conditions:f.conditions.includes(c)?f.conditions.filter(x=>x!==c):[...f.conditions,c]}));
+  }
+
+  function handleFiles(files){
+    const valid=[...files].filter(f=>f.size<=20*1024*1024);
+    const meta=valid.map(f=>({name:f.name,size:f.size,type:f.type,uploaded:new Date().toISOString()}));
+    setForm(f=>({...f,records:[...f.records,...meta]}));
+  }
+
+  function removeRecord(i){setForm(f=>({...f,records:f.records.filter((_,idx)=>idx!==i)}));}
+
+  function canNext(){
+    if(step===1) return form.age&&form.smoking_status&&form.lives_alone;
+    if(step===2) return (form.conditions.length>0||form.conditions_other)&&form.num_meds!=="";
+    if(step===3) return form.ed_visits!==""&&form.missed_appts!==""&&form.days_since_gp!==""&&form.telehealth_6m;
+    return true;
+  }
+
+  function handleSubmit(){
+    const profile={
+      ...form,
+      age:parseInt(form.age)||0,
+      num_meds:parseInt(form.num_meds)||0,
+      ed_visits:parseInt(form.ed_visits)||0,
+      missed_appts:parseInt(form.missed_appts)||0,
+      days_since_gp:parseInt(form.days_since_gp)||0,
+      completedAt:new Date().toISOString(),
+    };
+    onComplete(profile);
+  }
+
+  const inp={width:"100%",padding:"10px 14px",borderRadius:9,border:`1.5px solid ${T.border}`,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box",color:T.text,transition:"border-color 0.15s",background:T.white};
+  const Toggle=({label,field,opt,emoji})=>(
+    <button type="button" onClick={()=>setForm(f=>({...f,[field]:opt}))}
+      style={{flex:1,padding:"12px 10px",borderRadius:10,border:`2px solid ${form[field]===opt?T.sky:T.border}`,background:form[field]===opt?T.skyLight:T.white,color:form[field]===opt?T.sky:T.muted,fontFamily:"inherit",fontSize:13,fontWeight:form[field]===opt?700:400,cursor:"pointer",transition:"all 0.15s",textAlign:"center"}}>
+      {emoji&&<div style={{fontSize:20,marginBottom:4}}>{emoji}</div>}
+      <div>{label}</div>
+    </button>
+  );
+
+  const stepTitles=["Personal & Lifestyle","Medical Profile","Recent History","Medical Records"];
+  const stepIcons=["🧑","🩺","📅","📁"];
+
+  return(
+    <div style={{minHeight:"100vh",background:`linear-gradient(135deg, #0F172A 0%, #1E3A5F 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"DM Sans,sans-serif",padding:"24px"}}>
+      <div style={{width:"100%",maxWidth:580,background:T.white,borderRadius:24,boxShadow:"0 32px 80px rgba(0,0,0,0.35)",overflow:"hidden"}}>
+        {/* Header */}
+        <div style={{background:T.navy,padding:"28px 36px 24px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+            <div style={{fontSize:28,fontWeight:700,color:T.white,letterSpacing:"-0.02em"}}>REWS</div>
+            <div style={{fontSize:10,color:T.sky,letterSpacing:"0.14em",textTransform:"uppercase",fontWeight:500,marginTop:2}}>Patient Setup</div>
+          </div>
+          <div style={{fontSize:13,color:"rgba(248,250,252,0.55)",marginBottom:8}}>Welcome, {currentUser.name.split(" ")[0]} 👋 Let's set up your health profile.</div>
+          <div style={{fontSize:18,fontWeight:700,color:T.white,marginBottom:4}}>
+            {stepIcons[step-1]} {stepTitles[step-1]}
+          </div>
+          <div style={{fontSize:13,color:"rgba(248,250,252,0.55)"}}>Step {step} of {TOTAL} — Help us personalise your care</div>
+          {/* Progress bar */}
+          <div style={{marginTop:16,height:4,background:"rgba(255,255,255,0.12)",borderRadius:2,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${(step/TOTAL)*100}%`,background:T.sky,borderRadius:2,transition:"width 0.4s ease"}}/>
+          </div>
+          {/* Step dots */}
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            {Array.from({length:TOTAL},(_,i)=>(
+              <div key={i} style={{height:6,flex:1,borderRadius:3,background:i<step?"rgba(14,165,233,0.8)":"rgba(255,255,255,0.15)",transition:"background 0.3s"}}/>
+            ))}
+          </div>
+        </div>
+
+        {/* Form body */}
+        <div style={{padding:"28px 36px 32px"}}>
+          {step===1&&(
+            <div>
+              <div style={{marginBottom:20}}>
+                <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Your Age</label>
+                <input type="number" min="1" max="120" value={form.age} onChange={set("age")} placeholder="e.g. 65" style={inp}
+                  onFocus={e=>e.target.style.borderColor=T.sky} onBlur={e=>e.target.style.borderColor=T.border}/>
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Smoking Status</label>
+                <div style={{display:"flex",gap:10}}>
+                  <Toggle field="smoking_status" opt="never"   label="Never Smoked"   emoji="✅"/>
+                  <Toggle field="smoking_status" opt="former"  label="Former Smoker"  emoji="🚭"/>
+                  <Toggle field="smoking_status" opt="current" label="Current Smoker" emoji="🚬"/>
+                </div>
+              </div>
+              <div style={{marginBottom:8}}>
+                <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Living Situation</label>
+                <div style={{display:"flex",gap:10}}>
+                  <Toggle field="lives_alone" opt="yes" label="I live alone"        emoji="🏠"/>
+                  <Toggle field="lives_alone" opt="no"  label="I live with others"  emoji="👨‍👩‍👧"/>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step===2&&(
+            <div>
+              <div style={{marginBottom:20}}>
+                <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:10}}>Chronic Conditions <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>(select all that apply)</span></label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {CONDITION_OPTIONS.map(c=>{
+                    const sel=form.conditions.includes(c);
+                    return(
+                      <button key={c} type="button" onClick={()=>toggleCondition(c)}
+                        style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${sel?T.sky:T.border}`,background:sel?T.skyLight:T.white,color:sel?T.sky:T.muted,fontSize:12,fontWeight:sel?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{marginTop:10}}>
+                  <input value={form.conditions_other} onChange={set("conditions_other")} placeholder="Other conditions (type here)…" style={{...inp,fontSize:13}}
+                    onFocus={e=>e.target.style.borderColor=T.sky} onBlur={e=>e.target.style.borderColor=T.border}/>
+                </div>
+              </div>
+              <div style={{marginBottom:8}}>
+                <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Number of Current Medications</label>
+                <input type="number" min="0" max="50" value={form.num_meds} onChange={set("num_meds")} placeholder="e.g. 5" style={inp}
+                  onFocus={e=>e.target.style.borderColor=T.sky} onBlur={e=>e.target.style.borderColor=T.border}/>
+              </div>
+            </div>
+          )}
+
+          {step===3&&(
+            <div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+                <div>
+                  <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>ED Visits <span style={{fontWeight:400,textTransform:"none"}}>(last 6 months)</span></label>
+                  <input type="number" min="0" max="20" value={form.ed_visits} onChange={set("ed_visits")} placeholder="e.g. 2" style={inp}
+                    onFocus={e=>e.target.style.borderColor=T.sky} onBlur={e=>e.target.style.borderColor=T.border}/>
+                </div>
+                <div>
+                  <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Missed Appointments</label>
+                  <input type="number" min="0" max="20" value={form.missed_appts} onChange={set("missed_appts")} placeholder="e.g. 1" style={inp}
+                    onFocus={e=>e.target.style.borderColor=T.sky} onBlur={e=>e.target.style.borderColor=T.border}/>
+                </div>
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Days Since Last GP Visit</label>
+                <input type="number" min="0" max="1000" value={form.days_since_gp} onChange={set("days_since_gp")} placeholder="e.g. 45" style={inp}
+                  onFocus={e=>e.target.style.borderColor=T.sky} onBlur={e=>e.target.style.borderColor=T.border}/>
+              </div>
+              <div style={{marginBottom:8}}>
+                <label style={{fontSize:12,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:8}}>Telehealth Use</label>
+                <div style={{display:"flex",gap:10}}>
+                  <Toggle field="telehealth_6m" opt="yes" label="Yes, I use telehealth"    emoji="💻"/>
+                  <Toggle field="telehealth_6m" opt="no"  label="No, I haven't used it"    emoji="📵"/>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step===4&&(
+            <div>
+              <div style={{padding:"12px 16px",borderRadius:10,background:"#EFF6FF",border:"1px solid #BFDBFE",marginBottom:20,display:"flex",gap:10,alignItems:"flex-start"}}>
+                <span style={{fontSize:16,flexShrink:0}}>🔒</span>
+                <div style={{fontSize:12,color:"#1E40AF",lineHeight:1.5}}>
+                  <strong>Your records are private.</strong> Files are encrypted and only visible to you and your assigned care team. They are never shared without your explicit consent.
+                </div>
+              </div>
+              {/* Drop zone */}
+              <div
+                onDragOver={e=>{e.preventDefault();setDragging(true);}}
+                onDragLeave={()=>setDragging(false)}
+                onDrop={e=>{e.preventDefault();setDragging(false);handleFiles(e.dataTransfer.files);}}
+                style={{border:`2px dashed ${dragging?T.sky:T.border}`,borderRadius:14,padding:"32px 24px",textAlign:"center",background:dragging?T.skyLight:"#FAFBFC",transition:"all 0.2s",marginBottom:16,cursor:"pointer"}}
+                onClick={()=>document.getElementById("recordUpload").click()}>
+                <div style={{fontSize:36,marginBottom:10}}>📂</div>
+                <div style={{fontSize:14,fontWeight:600,color:T.text,marginBottom:4}}>Drop files here or click to browse</div>
+                <div style={{fontSize:12,color:T.muted}}>Accepts PDF, images, Word docs · Max 20 MB per file</div>
+                <input id="recordUpload" type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style={{display:"none"}}
+                  onChange={e=>handleFiles(e.target.files)}/>
+              </div>
+              {form.records.length>0&&(
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {form.records.map((r,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,background:T.slateBg,border:`1px solid ${T.border}`}}>
+                      <span style={{fontSize:18}}>{r.type.includes("pdf")?"📄":r.type.includes("image")?"🖼️":"📝"}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div>
+                        <div style={{fontSize:11,color:T.muted}}>{(r.size/1024).toFixed(0)} KB · 🔒 Private</div>
+                      </div>
+                      <button type="button" onClick={()=>removeRecord(i)} style={{background:"none",border:"none",cursor:"pointer",color:T.muted,fontSize:16,padding:"2px 6px",borderRadius:6,flexShrink:0}}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{marginTop:16,fontSize:12,color:T.muted,fontStyle:"italic",textAlign:"center"}}>
+                This step is optional — you can add records at any time from your Health Summary.
+              </div>
+            </div>
+          )}
+
+          {/* Nav buttons */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:28}}>
+            {step>1?(
+              <button type="button" onClick={()=>setStep(s=>s-1)}
+                style={{padding:"10px 22px",borderRadius:10,background:"none",border:`1.5px solid ${T.border}`,color:T.muted,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                ← Back
+              </button>
+            ):<div/>}
+            {step<TOTAL?(
+              <button type="button" onClick={()=>setStep(s=>s+1)} disabled={!canNext()}
+                style={{padding:"11px 28px",borderRadius:10,background:canNext()?T.sky:"#CBD5E1",border:"none",color:T.white,fontSize:14,fontWeight:700,cursor:canNext()?"pointer":"not-allowed",fontFamily:"inherit",transition:"background 0.15s"}}>
+                Continue →
+              </button>
+            ):(
+              <button type="button" onClick={handleSubmit}
+                style={{padding:"11px 28px",borderRadius:10,background:T.green,border:"none",color:T.white,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                Complete Setup ✓
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Patient Portal ───────────────────────────────────────────────────────────
 function PatientPortal({currentUser,onLogout,appointments,setAppointments,addToast}){
+  const profileKey=`rews_profile_${currentUser.email}`;
+  const [profile,setProfile]=useState(()=>{
+    try{ return JSON.parse(localStorage.getItem(profileKey)||"null"); }catch{ return null; }
+  });
+
   const [page,setPage]=useState("home");
   const pid=currentUser.patient_id||DEMO_PATIENT_ID;
   const me=PATIENTS.find(p=>p.patient_id===pid)||PATIENTS[0];
   const myAppts=appointments.filter(a=>a.patient===pid);
   const upcoming=myAppts.filter(a=>a.date>="2026-04-08").sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
   const past=myAppts.filter(a=>a.date<"2026-04-08").sort((a,b)=>b.date.localeCompare(a.date));
+
+  function handleOnboardingComplete(data){
+    localStorage.setItem(profileKey,JSON.stringify(data));
+    setProfile(data);
+    addToast("Profile saved! Welcome to your health portal.");
+  }
+
+  // Show onboarding if profile not yet set
+  if(!profile) return <PatientOnboarding currentUser={currentUser} onComplete={handleOnboardingComplete}/>;
 
   const PAT_NAV=[
     {id:"home",icon:"🏠",label:"Home"},
@@ -936,12 +1189,12 @@ function PatientPortal({currentUser,onLogout,appointments,setAppointments,addToa
 
   function renderPatientPage(){
     switch(page){
-      case "home":         return <PatientHome me={me} upcoming={upcoming} setPage={setPage} currentUser={currentUser} typeColor={typeColor} statusColor={statusColor}/>;
+      case "home":         return <PatientHome me={me} upcoming={upcoming} setPage={setPage} currentUser={currentUser} typeColor={typeColor} statusColor={statusColor} profile={profile}/>;
       case "appointments": return <PatientAppointments me={me} upcoming={upcoming} past={past} typeColor={typeColor} statusColor={statusColor} appointments={appointments} setAppointments={setAppointments} addToast={addToast} pid={pid}/>;
       case "mycare":       return <PatientCareTeam me={me} addToast={addToast}/>;
-      case "health":       return <PatientHealth me={me}/>;
+      case "health":       return <PatientHealth me={me} profile={profile}/>;
       case "messages":     return <PatientMessages me={me} addToast={addToast}/>;
-      default:             return <PatientHome me={me} upcoming={upcoming} setPage={setPage} currentUser={currentUser} typeColor={typeColor} statusColor={statusColor}/>;
+      default:             return <PatientHome me={me} upcoming={upcoming} setPage={setPage} currentUser={currentUser} typeColor={typeColor} statusColor={statusColor} profile={profile}/>;
     }
   }
 
@@ -960,7 +1213,7 @@ function PatientPortal({currentUser,onLogout,appointments,setAppointments,addToa
             </div>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:T.white,lineHeight:1.2}}>{currentUser.name}</div>
-              <div style={{fontSize:11,color:"#7DD3FC",marginTop:3}}>{me.patient_id} · {me.age} yrs</div>
+              <div style={{fontSize:11,color:"#7DD3FC",marginTop:3}}>{me.patient_id} · {profile?.age||me.age} yrs</div>
             </div>
           </div>
         </div>
@@ -1007,7 +1260,7 @@ function PatientPortal({currentUser,onLogout,appointments,setAppointments,addToa
 }
 
 // ─── Patient: Home ────────────────────────────────────────────────────────────
-function PatientHome({me,upcoming,setPage,currentUser,typeColor,statusColor}){
+function PatientHome({me,upcoming,setPage,currentUser,statusColor,profile}){
   const v=useVisible(50);
   const next=upcoming[0];
   const hour=new Date().getHours();
@@ -1015,7 +1268,7 @@ function PatientHome({me,upcoming,setPage,currentUser,typeColor,statusColor}){
   const tips=[
     {icon:"💧",text:"Stay hydrated — aim for 8 glasses of water today."},
     {icon:"🚶",text:"A 15-minute walk can help manage blood pressure."},
-    {icon:"💊",text:`You have ${me.num_meds} medications. Take them at the same time each day.`},
+    {icon:"💊",text:`You have ${profile?.num_meds??me.num_meds} medications. Take them at the same time each day.`},
     {icon:"📞",text:"If you feel unwell, call your care team right away."},
   ];
   const tip=tips[Math.floor(Date.now()/86400000)%tips.length];
@@ -1050,7 +1303,7 @@ function PatientHome({me,upcoming,setPage,currentUser,typeColor,statusColor}){
         {[
           {icon:"📅",label:"Upcoming",value:upcoming.length,sub:"appointments",color:T.sky,page:"appointments"},
           {icon:"👨‍⚕️",label:"Care Team",value:DOCTORS.length,sub:"doctors assigned",color:T.green,page:"mycare"},
-          {icon:"💊",label:"Medications",value:me.num_meds,sub:"active prescriptions",color:T.amber,page:"health"},
+          {icon:"💊",label:"Medications",value:profile?.num_meds??me.num_meds,sub:"active prescriptions",color:T.amber,page:"health"},
         ].map((c,i)=>(
           <div key={i} onClick={()=>setPage(c.page)} style={{background:T.white,borderRadius:14,border:`1px solid ${T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06),0 4px 20px rgba(0,0,0,0.06)",borderTop:`3px solid ${c.color}`,padding:"20px 22px",cursor:"pointer",opacity:v?1:0,transform:v?"translateY(0)":"translateY(16px)",transition:`opacity 0.5s ease ${100+i*80}ms,transform 0.5s ease ${100+i*80}ms`}}
             onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 6px 28px rgba(0,0,0,0.1)";}}
@@ -1083,7 +1336,7 @@ function PatientHome({me,upcoming,setPage,currentUser,typeColor,statusColor}){
 }
 
 // ─── Patient: Appointments ────────────────────────────────────────────────────
-function PatientAppointments({me,upcoming,past,typeColor,statusColor,appointments,setAppointments,addToast,pid}){
+function PatientAppointments({me,upcoming,past,statusColor,setAppointments,addToast,pid}){
   const v=useVisible(50);
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({date:"2026-04-15",time:"09:00",clinician:"Dr. Sarah Chen",type:"Telehealth",note:""});
@@ -1247,22 +1500,49 @@ function PatientCareTeam({me,addToast}){
 }
 
 // ─── Patient: Health Summary ──────────────────────────────────────────────────
-function PatientHealth({me}){
+function PatientHealth({me,profile}){
   const v=useVisible(50);
-  const diagnoses=me.diagnosis.split(" | ");
+  // Merge profile (self-entered) with demo data — profile takes priority
+  const age       = profile?.age       || me.age;
+  const numMeds   = profile?.num_meds  ?? me.num_meds;
+  const edVisits  = profile?.ed_visits ?? me.ed_visits;
+  const missedApp = profile?.missed_appts ?? me.missed_appts;
+  const daysSinceGp = profile?.days_since_gp ?? me.days_since_gp;
+  const smokingStatus = profile?.smoking_status || me.smoking_status;
+  const livesAlone    = profile?.lives_alone    || me.lives_alone;
+  const telehealthUse = profile?.telehealth_6m  || me.telehealth_6m;
+
+  // Build conditions list from profile if available, otherwise fall back to me.diagnosis
+  const diagnoses = profile
+    ? [...(profile.conditions||[]), ...(profile.conditions_other?[profile.conditions_other]:[])].filter(Boolean)
+    : me.diagnosis.split(" | ");
+
   const rc=riskColor(me.risk_tier);
   const [ringKey]=useState(0);
+
   const meds=[
     {name:"Ramipril",dose:"5mg",freq:"Once daily",purpose:"Blood pressure"},
     {name:"Furosemide",dose:"40mg",freq:"Morning",purpose:"Fluid management"},
     {name:"Metformin",dose:"500mg",freq:"Twice daily",purpose:"Diabetes"},
     {name:"Atorvastatin",dose:"20mg",freq:"At night",purpose:"Cholesterol"},
-  ].slice(0,Math.min(me.num_meds,4));
+  ].slice(0,Math.min(numMeds,4));
 
   return(
     <div style={{opacity:v?1:0,transition:"opacity 0.4s"}}>
-      <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:4}}>Health Summary</div>
-      <div style={{fontSize:13,color:T.muted,marginBottom:24}}>Your personal health overview</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
+        <div>
+          <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:4}}>Health Summary</div>
+          <div style={{fontSize:13,color:T.muted}}>Your self-reported health profile</div>
+        </div>
+        {profile&&(
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:20,background:T.greenLight,border:`1px solid ${T.green}33`}}>
+            <span style={{fontSize:12}}>✅</span>
+            <span style={{fontSize:11,fontWeight:600,color:T.green}}>Profile complete</span>
+          </div>
+        )}
+      </div>
+
+      {/* Risk ring + quick stats */}
       <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:20,marginBottom:20}}>
         <div style={{background:T.white,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06),0 4px 20px rgba(0,0,0,0.06)",padding:"24px 28px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minWidth:180}}>
           <div style={{position:"relative",marginBottom:12}}>
@@ -1277,10 +1557,10 @@ function PatientHealth({me}){
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           {[
-            {label:"Age",val:`${me.age} years`,icon:"🎂"},
+            {label:"Age",val:`${age} years`,icon:"🎂"},
             {label:"Location",val:me.aria_category,icon:"📍"},
-            {label:"Distance to Hospital",val:`${me.dist_to_hosp_km} km`,icon:"🏥"},
-            {label:"Days Since GP Visit",val:`${me.days_since_gp} days`,icon:"📅",warn:me.days_since_gp>90},
+            {label:"ED Visits (6m)",val:edVisits,icon:"🏥",warn:edVisits>=3},
+            {label:"Days Since GP Visit",val:`${daysSinceGp} days`,icon:"📅",warn:daysSinceGp>90},
           ].map((item,i)=>(
             <div key={i} style={{background:item.warn?T.redLight:T.white,borderRadius:12,border:`1px solid ${item.warn?T.red+"44":T.border}`,padding:"14px 18px",opacity:v?1:0,transform:v?"translateY(0)":"translateY(10px)",transition:`opacity 0.5s ease ${i*60}ms,transform 0.5s ease ${i*60}ms`}}>
               <div style={{fontSize:18,marginBottom:6}}>{item.icon}</div>
@@ -1290,18 +1570,40 @@ function PatientHealth({me}){
           ))}
         </div>
       </div>
+
+      {/* Recent history row */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+        {[
+          {label:"Missed Appointments",val:missedApp,icon:"📋",warn:missedApp>=3},
+          {label:"Medications",val:`${numMeds} active`,icon:"💊",warn:false},
+        ].map((item,i)=>(
+          <div key={i} style={{background:item.warn?T.amberLight:T.white,borderRadius:12,border:`1px solid ${item.warn?T.amber+"44":T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06)",padding:"14px 18px"}}>
+            <div style={{fontSize:18,marginBottom:6}}>{item.icon}</div>
+            <div style={{fontSize:11,color:item.warn?T.amber:T.muted,fontWeight:500,marginBottom:3}}>{item.label}</div>
+            <div style={{fontSize:15,fontWeight:700,color:item.warn?T.amber:T.text}}>{item.val}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Conditions */}
       <div style={{background:T.white,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06),0 4px 20px rgba(0,0,0,0.06)",padding:"22px 26px",marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:16}}>🩺 My Conditions</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
-          {diagnoses.map((d,i)=>(
-            <span key={i} style={{padding:"7px 14px",borderRadius:20,background:T.skyLight,color:T.navy,fontSize:13,fontWeight:600,border:`1px solid ${T.sky}22`}}>{d}</span>
-          ))}
-        </div>
+        {diagnoses.length>0?(
+          <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+            {diagnoses.map((d,i)=>(
+              <span key={i} style={{padding:"7px 14px",borderRadius:20,background:T.skyLight,color:T.navy,fontSize:13,fontWeight:600,border:`1px solid ${T.sky}22`}}>{d}</span>
+            ))}
+          </div>
+        ):(
+          <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>No conditions recorded.</div>
+        )}
       </div>
+
+      {/* Medications */}
       <div style={{background:T.white,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06),0 4px 20px rgba(0,0,0,0.06)",padding:"22px 26px",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontSize:13,fontWeight:700,color:T.text}}>💊 My Medications</div>
-          <span style={{fontSize:12,color:T.muted}}>{me.num_meds} total active</span>
+          <span style={{fontSize:12,color:T.muted}}>{numMeds} total active</span>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {meds.map((m,i)=>(
@@ -1313,18 +1615,20 @@ function PatientHealth({me}){
               </div>
             </div>
           ))}
-          {me.num_meds>4&&(
-            <div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px",fontStyle:"italic"}}>+{me.num_meds-4} more medications — ask your doctor for full list</div>
+          {numMeds>4&&(
+            <div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px",fontStyle:"italic"}}>+{numMeds-4} more medications — ask your doctor for the full list</div>
           )}
         </div>
       </div>
-      <div style={{background:T.white,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06),0 4px 20px rgba(0,0,0,0.06)",padding:"22px 26px"}}>
+
+      {/* Lifestyle */}
+      <div style={{background:T.white,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06),0 4px 20px rgba(0,0,0,0.06)",padding:"22px 26px",marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:16}}>🌿 Lifestyle Factors</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           {[
-            {label:"Smoking",val:me.smoking_status==="never"?"Non-smoker":me.smoking_status==="former"?"Former smoker":"Current smoker",ok:me.smoking_status==="never",icon:"🚬"},
-            {label:"Living Situation",val:me.lives_alone==="yes"?"Lives alone":"Lives with others",ok:me.lives_alone==="no",icon:"🏠"},
-            {label:"Telehealth",val:me.telehealth_6m==="yes"?"Telehealth capable":"Not set up",ok:me.telehealth_6m==="yes",icon:"💻"},
+            {label:"Smoking",val:smokingStatus==="never"?"Non-smoker":smokingStatus==="former"?"Former smoker":"Current smoker",ok:smokingStatus==="never",icon:"🚬"},
+            {label:"Living Situation",val:livesAlone==="yes"?"Lives alone":"Lives with others",ok:livesAlone==="no",icon:"🏠"},
+            {label:"Telehealth",val:telehealthUse==="yes"?"Telehealth capable":"Not set up",ok:telehealthUse==="yes",icon:"💻"},
             {label:"ATSI Status",val:me.atsi_status==="yes"?"Yes — additional support available":"No",ok:true,icon:"🌍"},
           ].map((item,i)=>(
             <div key={i} style={{padding:"12px 16px",borderRadius:10,background:item.ok?T.greenLight:T.amberLight,border:`1px solid ${item.ok?T.green+"33":T.amber+"33"}`}}>
@@ -1334,12 +1638,43 @@ function PatientHealth({me}){
           ))}
         </div>
       </div>
+
+      {/* Medical Records */}
+      <div style={{background:T.white,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 1px 3px rgba(0,0,0,0.06),0 4px 20px rgba(0,0,0,0.06)",padding:"22px 26px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.text}}>📁 Medical Records</div>
+          <div style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:14,background:"#EFF6FF",border:"1px solid #BFDBFE"}}>
+            <span style={{fontSize:11}}>🔒</span>
+            <span style={{fontSize:11,fontWeight:600,color:"#1D4ED8"}}>Private & Encrypted</span>
+          </div>
+        </div>
+        {profile?.records?.length>0?(
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {profile.records.map((r,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,background:T.slateBg,border:`1px solid ${T.border}`}}>
+                <span style={{fontSize:18}}>{r.type?.includes("pdf")?"📄":r.type?.includes("image")?"🖼️":"📝"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div>
+                  <div style={{fontSize:11,color:T.muted}}>{(r.size/1024).toFixed(0)} KB · Uploaded {new Date(r.uploaded).toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}</div>
+                </div>
+                <div style={{padding:"3px 8px",borderRadius:8,background:"#EFF6FF",border:"1px solid #BFDBFE",fontSize:10,fontWeight:600,color:"#1D4ED8",flexShrink:0}}>🔒 Private</div>
+              </div>
+            ))}
+          </div>
+        ):(
+          <div style={{textAlign:"center",padding:"24px 0",color:T.muted}}>
+            <div style={{fontSize:32,marginBottom:8}}>📂</div>
+            <div style={{fontSize:13,fontWeight:500,marginBottom:4}}>No records uploaded yet</div>
+            <div style={{fontSize:12,fontStyle:"italic"}}>You can upload medical records — they'll be private and only shared with your care team.</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─── Patient: Messages ────────────────────────────────────────────────────────
-function PatientMessages({me,addToast}){
+function PatientMessages({addToast}){
   const v=useVisible(50);
   const [selected,setSelected]=useState(0);
   const [reply,setReply]=useState("");
